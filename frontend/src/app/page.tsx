@@ -5,6 +5,7 @@ import { useTelemetrySocket } from "@/hooks/useTelemetrySocket";
 import { DefconBorder } from "@/components/DefconBorder";
 import { HeaderBar } from "@/components/HeaderBar";
 import { ChaosPanel } from "@/components/ChaosPanel";
+import { ThreatDiagnosisBanner } from "@/components/ThreatDiagnosisBanner";
 import { TrajectoryChart } from "@/components/TrajectoryChart";
 import { KillChainMeter } from "@/components/KillChainMeter";
 import { FeatureRadar } from "@/components/FeatureRadar";
@@ -28,6 +29,15 @@ export default function DashboardPage() {
           activeChaos={activeChaos}
           onInject={injectChaos}
           onClear={clearChaos}
+        />
+
+        <ThreatDiagnosisBanner
+          defcon={data?.defcon}
+          mitre={data?.mitre_attribution}
+          topDeviation={data?.feature_deviations?.[0]}
+          residualError={data?.metrics?.residual_error}
+          riskScore={data?.metrics?.risk_score}
+          projectedRisks={data?.k_step_forecast?.projected_risks}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

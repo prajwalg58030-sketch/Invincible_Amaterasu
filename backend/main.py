@@ -3,6 +3,7 @@ import sqlite3
 from datetime import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.websockets import WebSocketState
 
 from engine import TelemetryEngine
 from soar_playbook import evaluate_defcon, map_mitre_and_remediate
@@ -117,13 +118,17 @@ async def websocket_endpoint(websocket: WebSocket):
                     active_chaos = None
                 elif action == "jump_scenario":
                     engine.current_idx = int(data.get("index", 0))
-        except (WebSocketDisconnect, asyncio.CancelledError):
+        except (WebSocketDisconnect, RuntimeError, asyncio.CancelledError):
             pass
 
     receiver_task = asyncio.create_task(receive_commands())
 
     try:
         while True:
+            # If client disconnected or navigated away, exit cleanly
+            if websocket.client_state != WebSocketState.CONNECTED:
+                break
+
             step_data = engine.step_inference(active_chaos=active_chaos)
             
             defcon = evaluate_defcon(step_data["risk_score"], step_data["residual_error"])
@@ -133,12 +138,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 step_data["residual_error"]
             )
             
+            top_feature = step_data["deviations"][0]["feature"] if step_data.get("deviations") else "N/A"
+            
             if defcon["level"] == 1:
                 log_incident(
                     defcon, 
                     {"risk_score": step_data["risk_score"], "residual_error": step_data["residual_error"]},
                     soar_eval["mitre"],
-                    step_data["deviations"][0]["feature"],
+                    top_feature,
                     soar_eval["rule"]
                 )
             
@@ -185,13 +192,21 @@ async def websocket_endpoint(websocket: WebSocket):
                 }
             }
             
-            await websocket.send_json(payload)
+            if websocket.client_state == WebSocketState.CONNECTED:
+                await websocket.send_json(payload)
+            else:
+                break
+                
             await asyncio.sleep(0.3)
             
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, RuntimeError, asyncio.CancelledError):
         pass
     finally:
         receiver_task.cancel()
+        try:
+            await receiver_task
+        except (asyncio.CancelledError, Exception):
+            pass
 
 if __name__ == "__main__":
     import uvicorn
