@@ -86,6 +86,16 @@ def get_incidents(limit: int = 20):
     conn.close()
     return {"count": len(rows), "incidents": rows}
 
+@app.delete("/api/incidents/clear")
+@app.post("/api/incidents/clear")
+def clear_incidents():
+    conn = sqlite3.connect("incidents.db")
+    c = conn.cursor()
+    c.execute("DELETE FROM incidents")
+    conn.commit()
+    conn.close()
+    return {"status": "success", "message": "Incident ledger reset successfully"}
+
 # ----------------- Core Engine State -----------------
 engine = TelemetryEngine()
 active_chaos = None
