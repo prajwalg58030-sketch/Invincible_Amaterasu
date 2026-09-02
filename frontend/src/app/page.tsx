@@ -13,7 +13,15 @@ import { ResidualDrift } from "@/components/ResidualDrift";
 import { MitigationFeed } from "@/components/MitigationFeed";
 
 export default function DashboardPage() {
-  const { data, history, isConnected, activeChaos, injectChaos, clearChaos, jumpScenario } = useTelemetrySocket();
+  const {
+    data,
+    history,
+    isConnected,
+    activeChaos,
+    injectChaos,
+    clearChaos,
+    jumpScenario,
+  } = useTelemetrySocket();
 
   return (
     <DefconBorder defcon={data?.defcon}>
@@ -43,19 +51,25 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-4">
             <TrajectoryChart history={history} />
-            <KillChainMeter 
-              state={data?.kill_chain_meter} 
-              risks={data?.k_step_forecast?.projected_risks} 
+            <KillChainMeter
+              state={data?.kill_chain_meter}
+              risks={data?.k_step_forecast?.projected_risks}
             />
           </div>
           <div className="space-y-4">
-            <FeatureRadar observed={data?.observed_features} predicted={data?.predicted_features} />
+            <FeatureRadar
+              observed={data?.observed_features}
+              predicted={data?.predicted_features}
+            />
             <ResidualDrift deviations={data?.feature_deviations} />
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4">
-          <MitigationFeed soar={data?.soar_action} mitre={data?.mitre_attribution} />
+          <MitigationFeed
+            soar={data?.soar_action}
+            mitre={data?.mitre_attribution}
+          />
         </div>
       </div>
     </DefconBorder>

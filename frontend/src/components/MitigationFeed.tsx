@@ -1,54 +1,74 @@
-// frontend/src/components/MitigationFeed.tsx
 "use client";
 
-import React, { memo } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { SoarAction, MitreAttribution } from "@/types/telemetry";
 
-interface MitigationFeedProps {
-  soar?: {
-    rule_generated?: string;
-    timestamp?: string;
-  };
-  mitre?: {
-    tactic?: string;
-    technique_id?: string;
-  };
+interface ActionItem {
+  id: string;
+  rule: string;
+  technique: string;
+  timestamp: string;
 }
 
-function MitigationFeedBase({ soar, mitre }: MitigationFeedProps) {
-  const rule = soar?.rule_generated || "iptables -L -n (Listening)";
-  const timestamp = soar?.timestamp || "00:00:00";
-  const tactic = mitre?.tactic || "Nominal Baseline Monitoring";
+export function MitigationFeed({
+  soar,
+  mitre,
+}: {
+  soar?: SoarAction;
+  mitre?: MitreAttribution;
+}) {
+  const [feed, setFeed] = useState<ActionItem[]>([]);
+  const lastRuleRef = useRef<string>("");
+
+  useEffect(() => {
+    if (!soar?.rule_generated) return;
+
+    if (
+      soar.rule_generated !== lastRuleRef.current &&
+      !soar.rule_generated.includes("PASSIVE_MONITORING")
+    ) {
+      lastRuleRef.current = soar.rule_generated;
+      const newItem: ActionItem = {
+        id: Math.random().toString(36).substring(2, 9),
+        rule: soar.rule_generated,
+        technique: `${mitre?.technique_id || "ALERT"} - ${mitre?.technique_name || "Anomaly"}`,
+        timestamp: soar.timestamp || new Date().toLocaleTimeString(),
+      };
+      setFeed((prev) => [newItem, ...prev.slice(0, 14)]);
+    }
+  }, [soar, mitre]);
 
   return (
-    <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-xs">
-      <div className="flex justify-between items-center pb-2 mb-2 border-b border-slate-800">
-        <span className="text-slate-400 font-semibold tracking-wider uppercase text-[10px]">
-          SOAR Active Remediation Engine
+    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 font-mono text-xs">
+      <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-800">
+        <span className="font-bold text-slate-300 uppercase tracking-wider">
+          SOAR Active Defense Dispatcher
         </span>
-        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300">
-          AUTONOMOUS DEFENSE
+        <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+          AUTOMATED ENFORCEMENT ACTIVE
         </span>
       </div>
-      <div className="text-[11px] text-slate-300 space-y-1">
-        <div className="text-slate-400">
-          [{timestamp}] Target Classification: <span className="text-cyan-400">{tactic}</span>
-        </div>
-        <div className="p-2 bg-slate-900 rounded border border-slate-800 text-emerald-400 font-bold overflow-x-auto whitespace-pre">
-          $ {rule}
-        </div>
+
+      <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+        {feed.length === 0 ? (
+          <div className="text-slate-500 py-4 text-center">
+            System in equilibrium. SOAR standby: awaiting conservation violation.
+          </div>
+        ) : (
+          feed.map((item) => (
+            <div
+              key={item.id}
+              className="p-2 rounded bg-slate-950 border border-slate-800 flex items-center justify-between gap-4"
+            >
+              <div className="truncate">
+                <span className="text-rose-400 font-bold mr-2">[{item.technique}]</span>
+                <span className="text-slate-300">{item.rule}</span>
+              </div>
+              <span className="text-slate-500 text-[10px] shrink-0">{item.timestamp}</span>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
 }
-
-export const MitigationFeed = memo(
-  MitigationFeedBase,
-  (prev, next) =>
-    prev.soar?.timestamp === next.soar?.timestamp &&
-    prev.soar?.rule_generated === next.soar?.rule_generated &&
-    prev.mitre?.tactic === next.mitre?.tactic
-);
-
-MitigationFeed.displayName = "MitigationFeed";
-
-export default MitigationFeed;

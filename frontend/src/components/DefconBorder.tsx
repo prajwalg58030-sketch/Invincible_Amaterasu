@@ -3,18 +3,22 @@
 import React from "react";
 import { DefconState } from "@/types/telemetry";
 
-export function DefconBorder({ defcon, children }: { defcon?: DefconState; children: React.ReactNode }) {
-  const color = defcon?.color || "#10b981";
-  const isCrit = defcon?.level === 1;
+export function DefconBorder({
+  defcon,
+  children,
+}: {
+  defcon?: DefconState;
+  children: React.ReactNode;
+}) {
+  const borderColor = defcon?.color || "#10b981";
+  const isCritical = defcon?.level === 1;
 
   return (
     <div
-      className={`min-h-screen bg-slate-950 text-slate-100 p-4 transition-all duration-300 ${
-        isCrit ? "ring-4 ring-red-500 shadow-[0_0_50px_rgba(239,68,68,0.4)]" : "ring-1 ring-slate-800"
+      className={`min-h-screen bg-slate-950 text-slate-100 p-4 transition-all duration-500 border-t-4 ${
+        isCritical ? "shadow-[inset_0_0_80px_rgba(244,63,94,0.12)]" : ""
       }`}
-      style={{
-        boxShadow: `inset 0 0 80px ${color}15`
-      }}
+      style={{ borderTopColor: borderColor }}
     >
       {children}
     </div>

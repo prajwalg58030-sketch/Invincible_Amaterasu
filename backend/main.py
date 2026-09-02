@@ -1,3 +1,4 @@
+# backend/main.py
 import asyncio
 import sqlite3
 from datetime import datetime
@@ -105,6 +106,9 @@ active_chaos = None
 async def websocket_endpoint(websocket: WebSocket):
     global active_chaos
     await websocket.accept()
+    
+    # State latch to prevent SQLite write spamming
+    last_logged_technique = None
 
     async def receive_commands():
         global active_chaos
@@ -117,7 +121,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 elif action == "chaos_clear":
                     active_chaos = None
                 elif action == "jump_scenario":
-                    engine.current_idx = int(data.get("index", 0))
+                    active_chaos = None  # Reset chaos injection on scenario transition
+                    engine.jump_to_scenario(int(data.get("index", 0)))
         except (WebSocketDisconnect, RuntimeError, asyncio.CancelledError):
             pass
 
@@ -125,7 +130,6 @@ async def websocket_endpoint(websocket: WebSocket):
 
     try:
         while True:
-            # If client disconnected or navigated away, exit cleanly
             if websocket.client_state != WebSocketState.CONNECTED:
                 break
 
@@ -139,18 +143,26 @@ async def websocket_endpoint(websocket: WebSocket):
             )
             
             top_feature = step_data["deviations"][0]["feature"] if step_data.get("deviations") else "N/A"
-            
+            current_technique = soar_eval["mitre"]["technique_id"]
+
+            # Edge-triggered SQLite write: logs once per distinct attack phase
             if defcon["level"] == 1:
-                log_incident(
-                    defcon, 
-                    {"risk_score": step_data["risk_score"], "residual_error": step_data["residual_error"]},
-                    soar_eval["mitre"],
-                    top_feature,
-                    soar_eval["rule"]
-                )
-            
-            obs_flow = step_data["obs_features"].get("Flow Pkts/s", 0.0)
-            pred_flow = step_data["pred_features"].get("Flow Pkts/s", 0.0)
+                if current_technique != last_logged_technique:
+                    log_incident(
+                        defcon, 
+                        {"risk_score": step_data["risk_score"], "residual_error": step_data["residual_error"]},
+                        soar_eval["mitre"],
+                        top_feature,
+                        soar_eval["rule"]
+                    )
+                    last_logged_technique = current_technique
+            else:
+                last_logged_technique = None
+
+            # Dynamic Trajectory Tracking: track top drifting feature during attacks, otherwise Flow Pkts/s
+            tracked_metric = top_feature if defcon["level"] == 1 and top_feature in step_data["obs_features"] else "Flow Pkts/s"
+            obs_val = step_data["obs_features"].get(tracked_metric, 0.0)
+            pred_val = step_data["pred_features"].get(tracked_metric, 0.0)
             
             payload = {
                 "timestamp_idx": engine.current_idx,
@@ -162,9 +174,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     "anomaly_flag": defcon["level"] == 1
                 },
                 "trajectory_split": {
-                    "current_observed_val": obs_flow,
-                    "current_predicted_val": pred_flow,
-                    "divergence_delta": round(abs(obs_flow - pred_flow), 4)
+                    "tracked_feature": tracked_metric,
+                    "current_observed_val": obs_val,
+                    "current_predicted_val": pred_val,
+                    "divergence_delta": round(abs(obs_val - pred_val), 4)
                 },
                 "kill_chain_meter": {
                     "current_stage": soar_eval["mitre"]["tactic"],
@@ -179,8 +192,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 },
                 "benchmarks": {
                     "inference_latency_ms": step_data["benchmarks"]["latency_ms"],
+                    "latency_ms": step_data["benchmarks"]["latency_ms"],
                     "throughput_wps": step_data["benchmarks"]["throughput_wps"],
-                    "ram_usage_mb": step_data["benchmarks"]["ram_mb"]
+                    "ram_usage_mb": step_data["benchmarks"]["ram_mb"],
+                    "ram_mb": step_data["benchmarks"]["ram_mb"]
                 },
                 "observed_features": step_data["obs_features"],
                 "predicted_features": step_data["pred_features"],
