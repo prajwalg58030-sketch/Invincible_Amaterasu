@@ -1,34 +1,54 @@
+// frontend/src/components/ResidualDrift.tsx
 "use client";
 
 import React from "react";
 import { FeatureDeviation } from "@/types/telemetry";
 
-export function ResidualDrift({ deviations = [] }: { deviations?: FeatureDeviation[] }) {
+interface ResidualDriftProps {
+  deviations?: FeatureDeviation[] | Array<{ feature: string; [key: string]: any }>;
+}
+
+export const ResidualDrift = React.memo(function ResidualDrift({
+  deviations = [],
+}: ResidualDriftProps) {
+  const topDeviations = deviations.slice(0, 5);
+
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-xs font-semibold tracking-wider uppercase text-slate-300">Root-Cause Residual Drift</h3>
-        <span className="text-[10px] text-rose-400 font-mono">Δ = |X - X̂|</span>
-      </div>
-      <div className="space-y-2">
-        {deviations.slice(0, 4).map((d) => {
-          const pct = Math.min(Math.round(d.drift * 100), 100);
-          return (
-            <div key={d.feature}>
-              <div className="flex justify-between text-[11px] mb-1 font-mono">
-                <span className="text-slate-300">{d.feature}</span>
-                <span className={pct > 40 ? "text-rose-400 font-bold" : "text-slate-400"}>+{d.drift.toFixed(3)}</span>
+    <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-4 font-mono text-xs">
+      <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-3">
+        Top Feature Drift (Δ_i Decomposition)
+      </span>
+
+      <div className="space-y-2.5">
+        {topDeviations.length === 0 ? (
+          <div className="text-slate-500 text-[11px]">Calculating feature drift...</div>
+        ) : (
+          topDeviations.map((item: any, idx) => {
+            const devValue = Number(item.deviation ?? item.delta ?? item.drift ?? item.value ?? 0);
+            const isAnomaly = devValue >= 0.4;
+            const barWidth = Math.min(Math.max(devValue * 100, 4), 100);
+
+            return (
+              <div key={item.feature || idx} className="space-y-1">
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-slate-300 truncate max-w-[140px]">{item.feature}</span>
+                  <span className={`font-bold ${isAnomaly ? "text-rose-400" : "text-cyan-400"}`}>
+                    Δ {devValue.toFixed(4)}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800/80">
+                  <div
+                    className={`h-full rounded-full transition-[width] duration-100 ease-out ${
+                      isAnomaly ? "bg-rose-500" : "bg-cyan-500"
+                    }`}
+                    style={{ width: `${barWidth}%` }}
+                  />
+                </div>
               </div>
-              <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-                <div
-                  className={`h-full transition-all duration-300 ${pct > 40 ? "bg-rose-500" : "bg-cyan-500"}`}
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
     </div>
   );
-}
+});

@@ -1,27 +1,54 @@
+// frontend/src/components/MitigationFeed.tsx
 "use client";
 
-import React from "react";
-import { SoarAction, MitreAttribution } from "@/types/telemetry";
+import React, { memo } from "react";
 
-export function MitigationFeed({ soar, mitre }: { soar?: SoarAction; mitre?: MitreAttribution }) {
+interface MitigationFeedProps {
+  soar?: {
+    rule_generated?: string;
+    timestamp?: string;
+  };
+  mitre?: {
+    tactic?: string;
+    technique_id?: string;
+  };
+}
+
+function MitigationFeedBase({ soar, mitre }: MitigationFeedProps) {
+  const rule = soar?.rule_generated || "iptables -L -n (Listening)";
+  const timestamp = soar?.timestamp || "00:00:00";
+  const tactic = mitre?.tactic || "Nominal Baseline Monitoring";
+
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-4 flex flex-col justify-between">
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-xs font-semibold tracking-wider uppercase text-slate-300 flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            Autonomous SOAR Action Console
-          </h3>
-          <span className="text-[10px] font-mono text-slate-500">{soar?.timestamp || "00:00:00"}</span>
+    <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-xs">
+      <div className="flex justify-between items-center pb-2 mb-2 border-b border-slate-800">
+        <span className="text-slate-400 font-semibold tracking-wider uppercase text-[10px]">
+          SOAR Active Remediation Engine
+        </span>
+        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300">
+          AUTONOMOUS DEFENSE
+        </span>
+      </div>
+      <div className="text-[11px] text-slate-300 space-y-1">
+        <div className="text-slate-400">
+          [{timestamp}] Target Classification: <span className="text-cyan-400">{tactic}</span>
         </div>
-        <div className="bg-black/80 rounded border border-slate-800/80 p-2.5 font-mono text-[11px] text-emerald-400 space-y-1 overflow-x-auto">
-          <p className="text-slate-500">[SOC-ENGINE] Active Threat Rule:</p>
-          <p className="text-slate-200 break-all">{soar?.rule_generated || "Awaiting state divergence..."}</p>
-          <p className="text-slate-500 mt-2">
-            Target Technique: <span className="text-amber-400">{mitre?.technique_id} ({mitre?.technique})</span>
-          </p>
+        <div className="p-2 bg-slate-900 rounded border border-slate-800 text-emerald-400 font-bold overflow-x-auto whitespace-pre">
+          $ {rule}
         </div>
       </div>
     </div>
   );
 }
+
+export const MitigationFeed = memo(
+  MitigationFeedBase,
+  (prev, next) =>
+    prev.soar?.timestamp === next.soar?.timestamp &&
+    prev.soar?.rule_generated === next.soar?.rule_generated &&
+    prev.mitre?.tactic === next.mitre?.tactic
+);
+
+MitigationFeed.displayName = "MitigationFeed";
+
+export default MitigationFeed;

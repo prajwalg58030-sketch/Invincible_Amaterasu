@@ -1,54 +1,75 @@
+// frontend/src/components/KillChainMeter.tsx
 "use client";
 
-import React from "react";
-import { KillChainState } from "@/types/telemetry";
+import React, { memo } from "react";
 
 const STAGES = [
-  { id: 0, label: "Reconnaissance", code: "TA0043" },
-  { id: 1, label: "Initial Access", code: "TA0001" },
-  { id: 2, label: "Lateral Move", code: "TA0008" },
-  { id: 3, label: "C2 Channel", code: "TA0011" },
-  { id: 4, label: "Exfiltration / Impact", code: "TA0040" },
+  { name: "Recon", id: "TA0043" },
+  { name: "Initial Access", id: "TA0001" },
+  { name: "Lateral Move", id: "TA0008" },
+  { name: "Command & Control", id: "TA0011" },
+  { name: "Exfiltration", id: "TA0040" },
 ];
 
-export function KillChainMeter({ state, risks }: { state?: KillChainState; risks?: number[] }) {
-  const currentIdx = state?.current_stage_idx ?? 0;
-  const projectedIdx = state?.projected_stage_idx ?? 0;
+interface KillChainMeterProps {
+  state?: {
+    current_stage?: string;
+    current_stage_idx?: number;
+    projected_stage?: string;
+    projected_stage_idx?: number;
+    progression_confidence?: number;
+  };
+  risks?: number[];
+  currentIdx?: number;
+  projectedIdx?: number;
+  confidence?: number;
+}
+
+function KillChainMeterBase({
+  state,
+  risks,
+  currentIdx,
+  projectedIdx,
+  confidence,
+}: KillChainMeterProps) {
+  const activeIdx = currentIdx ?? state?.current_stage_idx ?? 0;
+  const targetIdx = projectedIdx ?? state?.projected_stage_idx ?? 1;
+  const rawConfidence =
+    confidence ??
+    state?.progression_confidence ??
+    (risks && risks.length > 0 ? risks[risks.length - 1] : 0.0);
+
+  const confidencePct = (rawConfidence * 100).toFixed(1);
 
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold tracking-wider uppercase text-slate-300">
-          Kill Chain Progression & K-Step Forward Horizon
-        </h3>
-        <span className="text-[10px] text-slate-400 font-mono">
-          Rollout Confidence: {((state?.progression_confidence ?? 0) * 100).toFixed(1)}%
+    <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-4 font-mono">
+      <div className="flex justify-between items-center mb-3">
+        <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+          MITRE Kill Chain Horizon
+        </span>
+        <span className="text-[11px] text-amber-400">
+          Horizon Forecast: {confidencePct}%
         </span>
       </div>
+
       <div className="grid grid-cols-5 gap-2">
-        {STAGES.map((s) => {
-          const isCurrent = s.id === currentIdx;
-          const isProjected = s.id === projectedIdx && projectedIdx > currentIdx;
-          const isPassed = s.id < currentIdx;
+        {STAGES.map((s, idx) => {
+          const isCurrent = idx === activeIdx;
+          const isProjected = idx === targetIdx && idx > activeIdx;
 
           return (
             <div
               key={s.id}
-              className={`p-2.5 rounded border text-center transition-all ${
+              className={`p-2 rounded text-center border transition-colors duration-150 ${
                 isCurrent
-                  ? "bg-rose-950/60 border-rose-500 text-rose-300 ring-1 ring-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.3)]"
+                  ? "bg-rose-950/70 border-rose-500 text-rose-300 shadow-[0_0_10px_rgba(244,63,94,0.35)]"
                   : isProjected
-                  ? "bg-amber-950/40 border-amber-500/80 border-dashed text-amber-300 animate-pulse"
-                  : isPassed
-                  ? "bg-slate-800/60 border-slate-700 text-slate-400"
-                  : "bg-slate-950/40 border-slate-800 text-slate-600"
+                  ? "bg-amber-950/40 border-amber-500/70 border-dashed text-amber-300 animate-pulse"
+                  : "bg-slate-950/50 border-slate-800 text-slate-500"
               }`}
             >
-              <div className="text-[9px] font-mono tracking-widest uppercase">{s.code}</div>
-              <div className="text-xs font-semibold truncate mt-0.5">{s.label}</div>
-              <div className="text-[8px] mt-1 uppercase font-bold">
-                {isCurrent ? "Active State" : isProjected ? "Horizon K=5" : isPassed ? "Traversed" : "Nominal"}
-              </div>
+              <div className="text-[10px] text-slate-400">{s.id}</div>
+              <div className="text-[11px] font-bold mt-1 truncate">{s.name}</div>
             </div>
           );
         })}
@@ -56,3 +77,36 @@ export function KillChainMeter({ state, risks }: { state?: KillChainState; risks
     </div>
   );
 }
+
+export const KillChainMeter = memo(KillChainMeterBase, (prev, next) => {
+  // Always trigger render on the first payload transition from null/undefined
+  if (!prev.state && next.state) return false;
+  if (!prev.risks && next.risks) return false;
+  if (prev.currentIdx === undefined && next.currentIdx !== undefined) return false;
+
+  const prevCur = prev.currentIdx ?? prev.state?.current_stage_idx ?? 0;
+  const nextCur = next.currentIdx ?? next.state?.current_stage_idx ?? 0;
+
+  const prevProj = prev.projectedIdx ?? prev.state?.projected_stage_idx ?? 1;
+  const nextProj = next.projectedIdx ?? next.state?.projected_stage_idx ?? 1;
+
+  const prevConf =
+    prev.confidence ??
+    prev.state?.progression_confidence ??
+    (prev.risks?.length ? prev.risks[prev.risks.length - 1] : 0);
+  const nextConf =
+    next.confidence ??
+    next.state?.progression_confidence ??
+    (next.risks?.length ? next.risks[next.risks.length - 1] : 0);
+
+  // Skip re-render if stage indices are unchanged and confidence drift is below 0.5%
+  return (
+    prevCur === nextCur &&
+    prevProj === nextProj &&
+    Math.abs(prevConf - nextConf) < 0.005
+  );
+});
+
+KillChainMeter.displayName = "KillChainMeter";
+
+export default KillChainMeter;
